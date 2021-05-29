@@ -708,7 +708,10 @@ module ocn_compute_nonhydrostatic_pressure
     call VecDestroy(negOneVec,petsc_err)
     call KSPDestroy(ksp,ierr2)
     call VecDestroy(local_x,petsc_err)
-    call PetscFinalize(ierr2)
+ 
+    !LPV FIXME : for some reason this causes error "Corrupt argument"
+    !disable for now
+    !call PetscFinalize(petsc_err)
 
   end subroutine ocn_nonhydrostatic_solver_finalize  
 

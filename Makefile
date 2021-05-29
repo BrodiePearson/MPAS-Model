@@ -562,9 +562,15 @@ endif
 # Depending on PIO version, libraries may be libpio.a, or libpiof.a and libpioc.a
 # Keep open the possibility of shared libraries in future with, e.g., .so suffix
 #
+# Check if libpio.* exists and link -lpio if so, but we make an exception for
+# libpio.settings (a file added in PIO2), which is not a library to link
 ifneq ($(wildcard $(PIO_LIB)/libpio\.*), )
+	# Makefiles don't support "and" operators so we have nested "if" instead
+	ifneq "$(wildcard $(PIO_LIB)/libpio\.*)" "$(PIO_LIB)/libpio.settings"
 	LIBS += -lpio
+	endif
 endif
+
 ifneq ($(wildcard $(PIO_LIB)/libpiof\.*), )
 	LIBS += -lpiof
 endif
@@ -624,7 +630,7 @@ else
 $(error liblapack.* does NOT exist in $(LAPACK) or $(LAPACK)/lib)
 endif
 	LIBS += -llapack
-	LIBS += -lrefblas
+	LIBS += -lblas
 	override CPPFLAGS += -DUSE_LAPACK
 endif
 
@@ -922,15 +928,13 @@ pio_test:
 	@# See whether either of the test programs can be compiled
 	@#
 	@echo "Checking for a usable PIO library..."
-	@($(FC) pio1.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio1.out && echo "=> PIO 1 detected") || \
-	 ($(FC) pio2.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio2.out && echo "=> PIO 2 detected") || \
+	@($(FC) pio1.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio1.out &> /dev/null && echo "=> PIO 1 detected") || \
+	 ($(FC) pio2.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio2.out &> /dev/null && echo "=> PIO 2 detected") || \
 	 (echo "************ ERROR ************"; \
 	  echo "Failed to compile a PIO test program"; \
 	  echo "Please ensure the PIO environment variable is set to the PIO installation directory"; \
 	  echo "************ ERROR ************"; \
-	  rm -rf pio[12].f90 pio[12].out; exit 1)
-
-	@rm -rf pio[12].out
+	  exit 1)
 
 	@#
 	@# Check that what the user has specified agrees with the PIO library version that was detected
