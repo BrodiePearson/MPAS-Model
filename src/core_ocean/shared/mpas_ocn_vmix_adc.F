@@ -464,7 +464,7 @@ contains
             do k = 1, nVertLevels
                KspsU(:,k,iCell) = 1.0E-12_RKIND
                KspsD(:,k,iCell) = 1.0E-12_RKIND
-              ! w2(:,k,iCell) = 0.0_RKIND 
+              ! w2(:,k,iCell) = 0.0_RKIND
                areaFraction(k,iCell) = 0.5_RKIND
                tumd(k,iCell) = 0.0_RKIND
                w2(:,k,iCell) = 0.0_RKIND
@@ -528,8 +528,9 @@ contains
                 w2s, wts, uvw, uwt, vwt,  &
                 ws2, wt2, areaFraction, Entrainment, &
                 Detrainment, tumd, sumd, wumd,       &
-                w2tend1, w2tend2, w2tend3, w2tend4,  &
-                w2tend5, wttend1, wttend2, wttend3,  &
+                w2tend_entrainment, w2tend_transport, w2tend_buoy, w2tend_pressure_buoy,  &
+                w2tend_pressure_shear, w2tend_subplume, w2tend_splat, &
+                wttend1, wttend2, wttend3,  &
                 wttend4, wttend5, wstend1, wstend2,  &
                 wstend3, wstend4, wstend5, uwtend1,  &
                 uwtend2, uwtend3, uwtend4, uwtend5,  &

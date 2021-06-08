@@ -58,8 +58,10 @@ module ocn_turbulence
                        uws, vws, ws2, wt2, areaFraction, Entrainment,        &
                        Detrainment, tumd, sumd, wumd, Mc
 
-   real(kind=RKIND), public, dimension(:,:), allocatable :: w2tend1, w2tend2,     &
-                       w2tend3, w2tend4, w2tend5, w2tend6, wttend1, wttend2,   &
+   real(kind=RKIND), public, dimension(:,:), allocatable :: w2tend_entrainment, &
+                       w2tend_transport, w2tend_pressure_isotropy, w2tend_buoy, &
+                       w2tend_pressure_buoy, w2tend_pressure_shear, w2tend_subplume, &
+                       w2tend_splat, wttend1, wttend2,   &
                        wttend3, wttend4, wttend5, wttend6, w3tend1, w3tend2,   &
                        w3tend3, w3tend5, w3tend4, w3tend6, wstend1, wstend2,   &
                        wstend3, wstend4, wstend5, uwtend1, uwtend2,   &
@@ -113,8 +115,9 @@ module ocn_turbulence
                        uwsTmp, vwsTmp, ws2Tmp, wt2Tmp, areaFractionTmp, EntrainmentTmp,        &
                        DetrainmentTmp, tumdTmp, sumdTmp, wumdTmp, McTmp, lendnTmp, lenupTmp
 
-   real(kind=RKIND), dimension(:,:), pointer :: w2tend1Tmp, w2tend2Tmp,     &
-                       w2tend3Tmp, w2tend4Tmp, w2tend5Tmp, w2tend6Tmp, wttend1Tmp, wttend2Tmp,   &
+   real(kind=RKIND), dimension(:,:), pointer ::    w2tend1Tmp, w2tend2Tmp, &
+                       w2tend3Tmp, w2tend4Tmp, w2tend5Tmp, w2tend6Tmp, w2tend7Tmp, &
+                       w2tend8Tmp, wttend1Tmp, wttend2Tmp,   &
                        wttend3Tmp, wttend4Tmp, wttend5Tmp, wttend6Tmp, w3tend1Tmp, w3tend2Tmp,   &
                        w3tend3Tmp, w3tend5Tmp, w3tend4Tmp, w3tend6Tmp, wstend1Tmp, wstend2Tmp,   &
                        wstend3Tmp, wstend4Tmp, wstend5Tmp, uwtend1Tmp, uwtend2Tmp,   &
@@ -272,12 +275,14 @@ module ocn_turbulence
       wumd = wumdTmp
       Mc = McTmp
 
-      call mpas_pool_get_array(adcTendPool, 'w2tend1', w2tend1Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend2', w2tend2Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend3', w2tend3Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend4', w2tend4Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend5', w2tend5Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend6', w2tend6Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_entrainment', w2tend1Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_transport', w2tend2Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_pressure_isotropy', w2tend3Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_buoy', w2tend4Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_pressure_buoy', w2tend5Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_pressure_shear', w2tend6Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_subplume', w2tend7Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_splat', w2tend8Tmp)
       call mpas_pool_get_array(adcTendPool, 'w3tend1', w3tend1Tmp)
       call mpas_pool_get_array(adcTendPool, 'w3tend2', w3tend2Tmp)
       call mpas_pool_get_array(adcTendPool, 'w3tend3', w3tend3Tmp)
@@ -322,12 +327,14 @@ module ocn_turbulence
       call mpas_pool_get_array(adcTendPool, 'v2cliptend', v2cliptendTmp)
       call mpas_pool_get_array(adcTendPool, 'w2cliptend', w2cliptendTmp)
 
-      allocate( w2tend1( nVertLevelsP1, nCells ))
-      allocate( w2tend2( nVertLevelsP1, nCells ))
-      allocate( w2tend3( nVertLevelsP1, nCells ))
-      allocate( w2tend4( nVertLevelsP1, nCells ))
-      allocate( w2tend5( nVertLevelsP1, nCells ))
-      allocate( w2tend6( nVertLevelsP1, nCells ))
+      allocate( w2tend_entrainment( nVertLevelsP1, nCells ))
+      allocate( w2tend_transport( nVertLevelsP1, nCells ))
+      allocate( w2tend_pressure_isotropy( nVertLevelsP1, nCells ))
+      allocate( w2tend_buoy( nVertLevelsP1, nCells ))
+      allocate( w2tend_pressure_buoy( nVertLevelsP1, nCells ))
+      allocate( w2tend_pressure_shear( nVertLevelsP1, nCells ))
+      allocate( w2tend_subplume( nVertLevelsP1, nCells ))
+      allocate( w2tend_splat( nVertLevelsP1, nCells ))
       allocate( wttend1( nVertLevelsP1, nCells ))
       allocate( wttend2( nVertLevelsP1, nCells ))
       allocate( wttend3( nVertLevelsP1, nCells ))
@@ -372,12 +379,14 @@ module ocn_turbulence
       allocate( v2cliptend( nVertLevelsP1, nCells ))
       allocate( w2cliptend( nVertLevelsP1, nCells ))
 
-      w2tend1 = w2tend1Tmp
-      w2tend2 = w2tend2Tmp
-      w2tend3 = w2tend3Tmp
-      w2tend4 = w2tend4Tmp
-      w2tend5 = w2tend5Tmp
-      w3tend6 = w2tend6Tmp
+      w2tend_entrainment = w2tend1Tmp
+      w2tend_transport = w2tend2Tmp
+      w2tend_pressure_isotropy = w2tend3Tmp
+      w2tend_buoy = w2tend4Tmp
+      w2tend_pressure_buoy = w2tend5Tmp
+      w2tend_pressure_shear = w2tend6Tmp
+      w2tend_subplume = w2tend7Tmp
+      w2tend_splat = w2tend8Tmp
       w3tend1 = w3tend1Tmp
       w3tend2 = w3tend2Tmp
       w3tend3 = w3tend3Tmp
@@ -716,8 +725,10 @@ module ocn_turbulence
                        uwsTmp, vwsTmp, ws2Tmp, wt2Tmp, areaFractionTmp, EntrainmentTmp,        &
                        DetrainmentTmp, tumdTmp, sumdTmp, wumdTmp, McTmp, lendnTmp, lenupTmp
 
-   real(kind=RKIND), dimension(:,:), pointer :: w2tend1Tmp, w2tend2Tmp,     &
-                       w2tend3Tmp, w2tend4Tmp, w2tend5Tmp, w2tend6Tmp, wttend1Tmp, wttend2Tmp,   &
+   real(kind=RKIND), dimension(:,:), pointer ::   w2tend1Tmp, &
+                       w2tend2Tmp, &
+                       w2tend3Tmp, w2tend4Tmp, w2tend5Tmp, w2tend6Tmp, w2tend7Tmp, &
+                       w2tend8Tmp, wttend1Tmp, wttend2Tmp,   &
                        wttend3Tmp, wttend4Tmp, wttend5Tmp, wttend6Tmp, w3tend1Tmp, w3tend2Tmp,   &
                        w3tend3Tmp, w3tend5Tmp, w3tend4Tmp, w3tend6Tmp, wstend1Tmp, wstend2Tmp,   &
                        wstend3Tmp, wstend4Tmp, wstend5Tmp, uwtend1Tmp, uwtend2Tmp,   &
@@ -984,12 +995,14 @@ module ocn_turbulence
       sumdTmp = sumd
       wumdTmp = wumd
 
-      call mpas_pool_get_array(adcTendPool, 'w2tend1', w2tend1Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend2', w2tend2Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend3', w2tend3Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend4', w2tend4Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend5', w2tend5Tmp)
-      call mpas_pool_get_array(adcTendPool, 'w2tend6', w2tend6Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_entrainment', w2tend1Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_transport', w2tend2Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_pressure_isotropy', w2tend3Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_buoy', w2tend4Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_pressure_buoy', w2tend5Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_pressure_shear', w2tend6Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_subplume', w2tend7Tmp)
+      call mpas_pool_get_array(adcTendPool, 'w2tend_splat', w2tend8Tmp)
       call mpas_pool_get_array(adcTendPool, 'w3tend1', w3tend1Tmp)
       call mpas_pool_get_array(adcTendPool, 'w3tend2', w3tend2Tmp)
       call mpas_pool_get_array(adcTendPool, 'w3tend3', w3tend3Tmp)
@@ -1034,12 +1047,14 @@ module ocn_turbulence
       call mpas_pool_get_array(adcTendPool, 'v2cliptend', v2cliptendTmp)
       call mpas_pool_get_array(adcTendPool, 'w2cliptend', w2cliptendTmp)
 
-      w2tend1Tmp = w2tend1
-      w2tend2Tmp = w2tend2
-      w2tend3Tmp = w2tend3
-      w2tend4Tmp = w2tend4
-      w2tend5Tmp = w2tend5
-      w2tend6Tmp = w2tend6
+      w2tend1Tmp = w2tend_entrainment
+      w2tend2Tmp = w2tend_transport
+      w2tend3Tmp = w2tend_pressure_isotropy
+      w2tend4Tmp = w2tend_buoy
+      w2tend5Tmp = w2tend_pressure_buoy
+      w2tend6Tmp = w2tend_pressure_shear
+      w2tend7Tmp = w2tend_subplume
+      w2tend8Tmp = w2tend_splat
       w3tend1Tmp = w3tend1
       w3tend2Tmp = w3tend2
       w3tend3Tmp = w3tend3
@@ -1390,12 +1405,14 @@ module ocn_turbulence
                  tumd,        &
                  sumd,        &
                  wumd,        &
-                 w2tend1,     &
-                 w2tend2,     &
-                 w2tend3,     &
-                 w2tend4,     &
-                 w2tend5,     &
-                 w2tend6,     &
+                 w2tend_entrainment,     &
+                 w2tend_transport,     &
+                 w2tend_pressure_isotropy,     &
+                 w2tend_buoy,     &
+                 w2tend_pressure_buoy,     &
+                 w2tend_pressure_shear,     &
+                 w2tend_subplume,     &
+                 w2tend_splat,     &
                  w3tend1,     &
                  w3tend2,     &
                  w3tend3,     &

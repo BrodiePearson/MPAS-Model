@@ -266,24 +266,30 @@
 
 	</var_struct>
 	<var_struct name="adcTendArrays" time_levs="1" packages="adcMixingPKG">
-    <var name="w2tend1" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+    <var name="w2tend_entrainment" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
 			 description="entrainment production term -- similar to dissipation"
 		/>
-    <var name="w2tend2" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+    <var name="w2tend_transport" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
       description="third order moment term (d / dz w^3)"
 		/>
-    <var name="w2tend3" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+    <var name="w2tend_pressure_isotropy" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
 			 description="return to isotropy term"
 		/>
-    <var name="w2tend4" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+    <var name="w2tend_buoy" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
 			 description="buoyancy production term"
 		/>
-    <var name="w2tend5" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
-			 description="shear production term"
-       />
-	<var name="w2tend6" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+    <var name="w2tend_pressure_buoy" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+			 description="buoyancy-driven pressure term"
+    />
+		<var name="w2tend_subplume" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+	 		 description="sub-plume scale effects"
+	  />
+		<var name="w2tend_pressure_shear" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+	 		 description="rapid (shear-driven) pressure term"
+	  />
+	  <var name="w2tend_splat" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
 			 description="conversion of w2 due to splat effects"
-	/>
+	  />
     <var name="w3tend1" type="real" dimensions="nVertLevels nCells Time" units="m^2/s^3"
 			 description="entrainment production term -- similar to dissipation"
 		/>
@@ -572,11 +578,14 @@
       <var name="tumd"/>
       <var name="sumd"/>
       <var name="wumd"/>
-      <var name="w2tend1"/>
-      <var name="w2tend2"/>
-      <var name="w2tend3"/>
-      <var name="w2tend4"/>
-      <var name="w2tend5"/>
+      <var name="w2tend_entrainment"/>
+      <var name="w2tend_transport"/>
+      <var name="w2tend_pressure_isotropy"/>
+      <var name="w2tend_buoy"/>
+      <var name="w2tend_pressure_buoy"/>
+			<var name="w2tend_pressure_shear"/>
+      <var name="w2tend_subplume"/>
+			<var name="w2tend_splat"/>
       <var name="u2tend1"/>
       <var name="u2tend2"/>
       <var name="u2tend3"/>

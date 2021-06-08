@@ -291,7 +291,7 @@ module ocn_adc_mixing_fused
             d_sqrt_wp2_dz = (sqrt(w2(i1,1,iCell)) - sqrt(0.5_RKIND*(w2(i1,1,iCell)+ &
                               w2(i1,2,iCell)))) / (ze(1,iCell) - zm(1,iCell))
             tau_sfc = length(1,iCell) / sqrt(0.5_RKIND*(u2(i1,k,iCell) + v2(i1,k,iCell)))
-            w2tend6(1,iCell) = min(max(-config_adc_splat_tend_max, -w2(i1,1,iCell)*      &
+            w2tend_splat(1,iCell) = min(max(-config_adc_splat_tend_max, -w2(i1,1,iCell)*      &
                                 config_adc_splat_wp2_val*tau_sfc*d_sqrt_wp2_dz**2),      &
                                 config_adc_splat_tend_max)
             tau_sfc = 0.5_RKIND*(length(1,iCell) + length(2,iCell)) / sqrt(0.5_RKIND*( &
@@ -311,7 +311,7 @@ module ocn_adc_mixing_fused
                                 (ze(k-1,iCell) - ze(k+1,iCell))
                tau_sfc = length(k,iCell) / sqrt(0.5_RKIND*(u2(i1,k,iCell) + v2(i1,k,iCell) + &
                                 w2(i1,k,iCell)))
-               w2tend6(k,iCell) = min(max(-config_adc_splat_tend_max, -w2(i1,k,iCell)*      &
+               w2tend_splat(k,iCell) = min(max(-config_adc_splat_tend_max, -w2(i1,k,iCell)*      &
                                    config_adc_splat_wp2_val*tau_sfc*d_sqrt_wp2_dz**2),      &
                                    config_adc_splat_tend_max)
                tau_sfc = 0.5_RKIND*(length(k,iCell) + length(k+1,iCell)) / sqrt(0.5_RKIND*( &
@@ -333,11 +333,11 @@ module ocn_adc_mixing_fused
                                     ws(i1,1,iCell)**2 / (sp2 * 0.99_RKIND**2 + 1.0E-15_RKIND))
             tau_sfc = length(1,iCell) / sqrt(0.5_RKIND*(u2(i1,1,iCell) + v2(i1,1,iCell)))
 
-            if(w2(k,1,iCell) + tau_sfc * w2tend6(1,iCell) < min_wps_sfc_val) then
+            if(w2(k,1,iCell) + tau_sfc * w2tend_splat(1,iCell) < min_wps_sfc_val) then
                wp2_splat_sfc_correction = -w2(i1,1,iCell) + min_wp2_sfc_val
                w2(i1,1,iCell) = min_wp2_sfc_val
             else
-               wp2_splat_sfc_correction = tau_sfc * w2tend6(1,iCell)
+               wp2_splat_sfc_correction = tau_sfc * w2tend_splat(1,iCell)
                w2(i1,1,iCell) = w2(i1,1,iCell) + wp2_splat_sfc_correction
             end if
             u2(i1,1,iCell) = u2(i1,1,iCell) - 0.5_RKIND * wp2_splat_sfc_correction
@@ -347,15 +347,15 @@ module ocn_adc_mixing_fused
         !build up splat tend for u2 and v2
         do iCell=1,nCells
            do k=2,nVertLevels
-              u2tend6(k,iCell) = -0.5_RKIND*w2tend6(k,iCell)
-              v2tend6(k,iCell) = -0.5_RKIND*w2tend6(k,iCell)
+              u2tend6(k,iCell) = -0.5_RKIND*w2tend_splat(k,iCell)
+              v2tend6(k,iCell) = -0.5_RKIND*w2tend_splat(k,iCell)
            end do
         end do
      else
         do iCell=1,nCells
            do k=1,nVertLevels
               w3tend6(k,iCell) = 0.0_RKIND
-              w2tend6(k,iCell) = 0.0_RKIND
+              w2tend_splat(k,iCell) = 0.0_RKIND
               u2tend6(k,iCell) = 0.0_RKIND
               v2tend6(k,iCell) = 0.0_RKIND
            end do
@@ -563,20 +563,33 @@ module ocn_adc_mixing_fused
               tauVel(k,iCell) = C_slow*KE / (1.0E-15_RKIND + length(k,iCell))
               tauvVel(k,iCell) = slow_w_factor*C_slow*KE / (1.0E-15_RKIND + length(k,iCell))
 
-              w2tend1(k,iCell) = -wumd(k,iCell)**2.0_RKIND*(         &
+              ! Diagnose terms in the w2 (vertical velocity variance) budget.
+              ! These terms are due to entrainment + detrainment, turbulent
+              ! transport, buoyancy forces, pressure effects (which includes a
+              ! return-to-isotropy term, a shear/rapid term, and a buoyancy term),
+              ! sub-grid processes, and if required, a splatting term.
+
+              w2tend_entrainment(k,iCell) = -wumd(k,iCell)**2.0_RKIND*(         &
                 Entrainment(k,iCell) + Detrainment(k,iCell))
-              w2tend2(k,iCell) = (McMid(k-1,iCell)*(1.0_RKIND - 2.0_RKIND* &
+              w2tend_transport(k,iCell) = (McMid(k-1,iCell)*(1.0_RKIND - 2.0_RKIND* &
                 areaFractionMid(k-1,iCell))*wumdMid(k-1,iCell)**2.0 - McMid(k,iCell)* &
                 (1.0_RKIND - 2.0_RKIND*areaFractionMid(k,iCell))*wumdMid(k,iCell)**2.0) / dzmid
-              w2tend3(k,iCell) = tauvVel(k,iCell)*(u2(i1,k,iCell) + v2(i1,k,iCell))/3.0_RKIND
-              w2tend4(k,iCell) = (2.0_RKIND - 4.0_RKIND/3.0_RKIND*C_b)*Mc(k,iCell)* &
+              w2tend_pressure_isotropy(k,iCell) = tauvVel(k,iCell)*(u2(i1,k,iCell) + &
+                v2(i1,k,iCell))/3.0_RKIND
+              w2tend_buoy(k,iCell) = (2.0_RKIND - 1.0_RKIND*4.0_RKIND/3.0_RKIND*C_b)*Mc(k,iCell)* &
                 (grav*alphaT(k,iCell)*tumd(k,iCell) - grav*betaS(k,iCell)*sumd(k,iCell))
-              w2tend5(k,iCell) = (1.0_RKIND/3.0_RKIND*alpha_1 -            &
-                alpha_2)*(uw(i1,k,iCell)*Uz + vw(i1,k,iCell)*Vz) +         &
-                Mc(k,iCell)*(Swumd(k-1,iCell) + Swumd(k,iCell))
+              w2tend_pressure_buoy(k,iCell) = - 0.0_RKIND*4.0_RKIND/3.0_RKIND*C_b*Mc(k,iCell)* &
+                (grav*alphaT(k,iCell)*tumd(k,iCell) - grav*betaS(k,iCell)*sumd(k,iCell))
+              w2tend_pressure_shear(k,iCell) = (1.0_RKIND/3.0_RKIND*alpha_1 - &
+                alpha_2)*(uw(i1,k,iCell)*Uz + vw(i1,k,iCell)*Vz)
+              w2tend_subplume(k,iCell) = Mc(k,iCell)*(Swumd(k-1,iCell) + Swumd(k,iCell))
 
-              w2tend(i3_f,k,iCell) = w2tend1(k,iCell) + w2tend2(k,iCell) + &
-                w2tend3(k,iCell) + w2tend4(k,iCell) + w2tend5(k,iCell) + w2tend6(k,iCell)
+              w2tend(i3_f,k,iCell) = w2tend_entrainment(k,iCell) + w2tend_transport(k,iCell) + &
+                w2tend_pressure_isotropy(k,iCell)  +  w2tend_buoy(k,iCell) + w2tend_pressure_buoy(k,iCell) + &
+                w2tend_pressure_shear(k,iCell) + &
+                w2tend_subplume(k,iCell) + w2tend_splat(k,iCell)
+              !w2tend(i3_f,k,iCell) = w2tend_entrainment(k,iCell) + w2tend2(k,iCell) + &
+              !  w2tend3(k,iCell) + w2tend4(k,iCell) + w2tend5(k,iCell) + w2tend6(k,iCell)
 
               wttend1(k,iCell) = -1.0_RKIND*(Entrainment(k,iCell) + Detrainment(k,iCell)) * &
                 wumd(k,iCell)*tumd(k,iCell)
