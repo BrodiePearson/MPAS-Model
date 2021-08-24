@@ -223,9 +223,10 @@ module ocn_adc_mixing_fused
 !             [stokes_decay_depth]. This is temporary; eventually MPAS will pass profiles
 !             For now this is calculated using an assumed Langmuir number of La_t and waves in
 !             x/u-direction only
-!             La_t = (surface stokes drift/friction velocity)^(0.5)
-              La_t = 0.0_RKIND
-              uStokes_surf = (La_t**2.0_RKIND)*frictionVelocity
+!             La_t = (friction velocity / surface stokes drift)^(0.5)
+              La_t = 0.3_RKIND
+              stokes_decay_depth = 4.8_RKIND
+              uStokes_surf = 0.0_RKIND !frictionVelocity / (La_t**2.0_RKIND)
               vStokes_surf = 0.0_RKIND
               uStokes(1,iCell) = uStokes_surf
               vStokes(1,iCell) = vStokes_surf
