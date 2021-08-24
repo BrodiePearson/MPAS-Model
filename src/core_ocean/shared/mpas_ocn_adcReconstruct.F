@@ -178,9 +178,11 @@ module ocn_adc_mixing_fused
       real(kind=RKIND) :: B, Cval, diff, wtav, dzmid, Ksps, Sz, Tz, w4k, w4kp1, w2k, w2kp1
       real(kind=RKIND) :: lareaFraction, wstar, Q, w3av, tempMoment, frictionVelocity
       real(kind=RKIND) :: sfcFrictionVelocitySquared, wtSumUp, wtSumDn, wsSumUp, wsSumDn
+      real(kind=RKIND) :: uStokes_surf, vStokes_surf, stokes_decay_depth, La_t
 
       real(kind=RKIND),dimension(nVertLevels,nCells) :: Swumd
       real(kind=RKIND),dimension(nVertLevels,nCells) :: tauw3, tau_tracer, tauVel, tauvVel
+      real(kind=RKIND),dimension(nVertLevels,nCells) :: uStokes, vStokes
       real(kind=RKIND),dimension(nVertLevels,nCells) :: areaFractionMid, tumdMid, McMid, wumdMid, sumdMid
 
       real(kind=RKIND) :: SwU, SwD, tau_sfc, d_sqrt_wp2_dz, tp2, sp2, min_wp2_sfc_val, wp2_splat_sfc_correction
@@ -213,18 +215,25 @@ module ocn_adc_mixing_fused
               w2t(1,iCell) = -0.3_RKIND*wstar * wtsfc(iCell)
               w2s(1,iCell) = 0.3_RKIND*wstar * wssfc(iCell)
 
-!             Calculate exponential Stokes drift profiles from surface values & decay depth (delta)
-!             (temporary; eventually MPAS will pass profiles)
-              uStokes(1,iCell) = uStokes_surf
-              vStokes(1,iCell) = vStokes_surf
-              do k=1,nVertLevels
-                 uStokes(k,iCell) = uStokes_surf*EXP(ze(k,iCell)/delta)
-                 vStokes(k,iCell) = vStokes_surf*EXP(ze(k,iCell)/delta)
-              enddo
-
               sfcFrictionVelocitySquared = uwsfc(iCell) + vwsfc(iCell)
               frictionVelocity = sqrt(sfcFrictionVelocitySquared + config_adc_bc_wstar * wstar * wstar)
               frictionVelocity = max( config_adc_frictionVelocityMin, frictionVelocity )
+
+!             Calculate exponential Stokes drift profiles from surface values & decay depth
+!             [stokes_decay_depth]. This is temporary; eventually MPAS will pass profiles
+!             For now this is calculated using an assumed Langmuir number of La_t and waves in
+!             x/u-direction only
+!             La_t = (surface stokes drift/friction velocity)^(0.5)
+              La_t = 0.0_RKIND
+              uStokes_surf = (La_t**2.0_RKIND)*frictionVelocity
+              vStokes_surf = 0.0_RKIND
+              uStokes(1,iCell) = uStokes_surf
+              vStokes(1,iCell) = vStokes_surf
+              do k=1,nVertLevels
+                 uStokes(k,iCell) = uStokes_surf*EXP(ze(k,iCell)/stokes_decay_depth)
+                 vStokes(k,iCell) = vStokes_surf*EXP(ze(k,iCell)/stokes_decay_depth)
+              enddo
+
               do k=1,3
                  u2(k,1,iCell) = config_adc_up2_vp2_factor*config_adc_bc_const*frictionVelocity**2.0_RKIND
                  v2(k,1,iCell) = config_adc_up2_vp2_factor*config_adc_bc_const*frictionVelocity**2.0_RKIND
@@ -455,6 +464,9 @@ module ocn_adc_mixing_fused
                 SwD = -(1.0_RKIND-2.0_RKIND*areaFraction(k+1,iCell)) &
                    /(areaFraction(k+1,iCell)*(1.0_RKIND-areaFraction(k+1,iCell)))**0.5_RKIND
 
+                Ustz = (uStokes(k,iCell) - uStokes(k+1,iCell)) / dz
+                Vstz = (vStokes(k,iCell) - vStokes(k+1,iCell)) / dz
+
 !      CALCULATE W3 TENDENCY TERMS
 !      Calculate the tendency (rate-of-change) terms for the w3 budget.
 !      The w3 tendency is the sum of the following terms (saved individually)
@@ -480,7 +492,7 @@ module ocn_adc_mixing_fused
                  w3tend5(k,iCell) = 3.0_RKIND*grav*(alphaT(k,iCell)*w2t(k,iCell) - betaS(k,iCell)* &
                    w2s(k,iCell)) - 3.0_RKIND*(1.0_RKIND - 2.0_RKIND*sigav)*Mcav*wumdav*Swumd(k,iCell)
 
-                 w3tend7(k,iCell) = - 3.0_RKIND*(uw2(i1,k,iCell)*( uStokes(i1,k,iCell) - uStokes(i1,k+1,iCell)) / dz + vw2(i1,k,iCell)*( vStokes(i1,k,iCell) - vStokes(i1,k+1,iCell)) / dz)
+                 w3tend7(k,iCell) = - 3.0_RKIND*(uw2(k,iCell)*Ustz + vw2(k,iCell)*Vstz)
 
                  w3tend(i3_f,k,iCell) = w3tend1(k,iCell) + w3tend2(k,iCell) + w3tend3(k,iCell) + &
                    w3tend4(k,iCell) + w3tend5(k,iCell) + w3tend6(k,iCell) + w3tend7(k,iCell)
@@ -573,7 +585,7 @@ module ocn_adc_mixing_fused
                    alpha_2)*(uw(i1,k,iCell)*Uz + vw(i1,k,iCell)*Vz) - 4.0_RKIND/3.0_RKIND* &
                    C_b*Mc(k,iCell)*(grav*alphaT(k,iCell)*tumd(k,iCell) - &
                    grav*betaS(k,iCell)*sumd(k,iCell)) + &
-                   (alpha_st_1 / 3.0_RKIND - alpha_st_2)*(uw(i1,k,iCell)*Usz + vw(i1,k,iCell)*Vsz)
+                   (alpha_st_1 / 3.0_RKIND - alpha_st_2)*(uw(i1,k,iCell)*Ustz + vw(i1,k,iCell)*Vstz)
 
                  w2tend4(k,iCell) = 2.0_RKIND*Mc(k,iCell)* &
                    (grav*alphaT(k,iCell)*tumd(k,iCell) - grav*betaS(k,iCell)*sumd(k,iCell))
