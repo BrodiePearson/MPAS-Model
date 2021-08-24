@@ -528,19 +528,20 @@ contains
                 ws2, wt2, areaFraction, Entrainment, &
                 Detrainment, tumd, sumd, wumd,       &
                 w2tend1, w2tend2, w2tend3, w2tend4,  &
-                w2tend5, w2tend6, w3tend1, w3tend2,  &
-                w3tend3, w3tend4, w3tend5, w3tend6,  &
-                wttend1, wttend2, wttend3, wttend6,  &
-                wttend4, wttend5, wstend1, wstend2,  &
-                wstend3, wstend4, wstend5, wstend6,  &
+                w2tend5, w2tend6, w2tend7, w3tend1,  &
+                w3tend2, w3tend3, w3tend4, w3tend5,  &
+                w3tend6, w3tend7, wttend1, wttend2,  &
+                wttend3, wttend4, wttend5, wttend6,  &
+                wttend7, wstend1, wstend2, wstend3,  &
+                wstend4, wstend5, wstend6, wstend7,  &
                 uwtend1, uwtend2, uwtend3, uwtend4,  &
-                uwtend5, vwtend1, vwtend2, vwtend3,  &
-                vwtend4, vwtend5, u2tend1, u2tend2,  &
-                u2tend3, u2tend4, u2tend5, u2tend6,  &
-                v2tend1, v2tend2, v2tend3, v2tend4,  &
-                v2tend5, v2tend6, u2cliptend,        &
-                v2cliptend, w2cliptend, u2tend,      &
-                v2tend, w2tend, wttend, wstend,      &
+                uwtend5, uwtend6, vwtend1, vwtend2,  &
+                vwtend3, vwtend4, vwtend5, vwtend6,  &
+                u2tend1, u2tend2, u2tend3, u2tend4,  &
+                u2tend5, u2tend6, v2tend1, v2tend2,  &
+                v2tend3, v2tend4,v2tend5, v2tend6,   &
+                u2cliptend, v2cliptend, w2cliptend,  &
+                u2tend,v2tend, w2tend, wttend, wstend, &
                 uwtend, vwtend, w3tend, uvtend,      &
                 epstend, uttend, vttend, ustend,     &
                 vstend, tstend, u2, v2, w2, wt, ws,  &
