@@ -19,6 +19,22 @@
 	      description="number of decimal places to keep, inverse is position of decimal rounding"
 	      possible_values="large positive reals"
 	      />
+  <nml_option name="config_adc_langmuir" type="logical" default_value=".false." units="unitless"
+          description="Switch to turn on wave effects (Langmuir turbulence) in ADC scheme. If false the Stokes drift of waves is set to zero. "
+          possible_values=".true. or .false."
+          />
+  <nml_option name="config_adc_La_t" type="real" default_value="0.3" units="unitless"
+          description="Turbulent Langmuir number La_t = SQRT(friction velocity / surface Stokes drift magnitude). Default value is that of an 'equilibrium wind-sea'."
+          possible_values="positive real numbers, increasing values indicate weaker waves"
+          />
+  <nml_option name="config_adc_stokes_depth" type="real" default_value="4.8" units="m"
+          description="Exponential decay depth of Stokes drift profile. Default value is common in LES studies."
+          possible_values="positive real numbers"
+          />
+  <nml_option name="config_adc_stokes_angle" type="real" default_value="0.0" units="radians"
+          description="Angle between wind and waves (surface stress and surface Stokes drift vector respectively). Positive values denote waves to the left of the wind. NOTE: units are RADIANS."
+          possible_values="positive or negative real numbers"
+          />
   <nml_option name="config_adc_tau_o" type="real" default_value="1800" units="s^{-1}"
 	      description="characterstic eddy turnover timescale"
 	      possible_values="positive real numbers"

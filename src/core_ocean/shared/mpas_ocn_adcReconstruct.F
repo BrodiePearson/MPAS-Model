@@ -178,7 +178,7 @@ module ocn_adc_mixing_fused
       real(kind=RKIND) :: B, Cval, diff, wtav, dzmid, Ksps, Sz, Tz, w4k, w4kp1, w2k, w2kp1
       real(kind=RKIND) :: lareaFraction, wstar, Q, w3av, tempMoment, frictionVelocity
       real(kind=RKIND) :: sfcFrictionVelocitySquared, wtSumUp, wtSumDn, wsSumUp, wsSumDn
-      real(kind=RKIND) :: uStokes_surf, vStokes_surf, stokes_decay_depth, La_t
+      real(kind=RKIND) :: uStokes_surf, vStokes_surf
 
       real(kind=RKIND),dimension(nVertLevels,nCells) :: Swumd
       real(kind=RKIND),dimension(nVertLevels,nCells) :: tauw3, tau_tracer, tauVel, tauvVel
@@ -219,20 +219,25 @@ module ocn_adc_mixing_fused
               frictionVelocity = sqrt(sfcFrictionVelocitySquared + config_adc_bc_wstar * wstar * wstar)
               frictionVelocity = max( config_adc_frictionVelocityMin, frictionVelocity )
 
+              ! Initialize Stokes drift surface values as zero, overwrite these if config_adc_langmuir = .True.
+              uStokes_surf = 0.0_RKIND
+              vStokes_surf = 0.0_RKIND
+              if (config_adc_langmuir) then
+                  uStokes_surf = COS(stokes_angle)*frictionVelocity / (La_t**2.0_RKIND)
+                  vStokes_surf = SIN(stokes_angle)*frictionVelocity / (La_t**2.0_RKIND)
+              endif
+
 !             Calculate exponential Stokes drift profiles from surface values & decay depth
 !             [stokes_decay_depth]. This is temporary; eventually MPAS will pass profiles
-!             For now this is calculated using an assumed Langmuir number of La_t and waves in
-!             x/u-direction only
-!             La_t = (friction velocity / surface stokes drift)^(0.5)
-              La_t = 0.3_RKIND
-              stokes_decay_depth = 4.8_RKIND
-              uStokes_surf = 0.0_RKIND !frictionVelocity / (La_t**2.0_RKIND)
-              vStokes_surf = 0.0_RKIND
+!             For now this is calculated using the turbulent Langmuir number La_t
+!             La_t = (friction velocity / surface stokes drift magnitude)^(0.5) and the
+!             stokes_angle (angle between surface stress and Stokes drift vectors)
+
               uStokes(1,iCell) = uStokes_surf
               vStokes(1,iCell) = vStokes_surf
               do k=1,nVertLevels
-                 uStokes(k,iCell) = uStokes_surf*EXP(ze(k,iCell)/stokes_decay_depth)
-                 vStokes(k,iCell) = vStokes_surf*EXP(ze(k,iCell)/stokes_decay_depth)
+                 uStokes(k,iCell) = uStokes_surf*EXP(ze(k,iCell)/stokes_depth)
+                 vStokes(k,iCell) = vStokes_surf*EXP(ze(k,iCell)/stokes_depth)
               enddo
 
               do k=1,3

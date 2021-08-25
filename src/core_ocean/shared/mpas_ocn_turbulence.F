@@ -48,7 +48,8 @@ module ocn_turbulence
                        alpha_st_tracer1, alpha_st_tracer2, alpha_st_0, alpha_st_1, &
                        alpha_st_2, alpha_0, alpha_1, alpha_2, B1, Kt, grav, c_mom, &
                        c_therm, c_mom_w3, c_epsilon, c_slow, c_slow_tracer, slow_w_factor, &
-                       kappa_FL, kappa_w3, kappa_VAR, Cww_D, Cww_E, adcRound
+                       kappa_FL, kappa_w3, kappa_VAR, Cww_D, Cww_E, adcRound, &
+                       La_t, stokes_depth, stokes_angle
 
    integer,public :: iterCount, nCells, nVertLevels
 
@@ -182,6 +183,9 @@ module ocn_turbulence
       kappa_FL = config_adc_kappaFL
       kappa_VAR = config_adc_kappaVAR
       kappa_w3 = config_adc_kappaW3
+      La_t = config_adc_La_t
+      stokes_depth = config_adc_stokes_depth
+      stokes_angle = config_adc_stokes_angle
       adcRound = 10.0_RKIND**config_adc_decimals_to_keep
       iterCount = 1
 
@@ -1243,6 +1247,9 @@ module ocn_turbulence
       kappa_FL = 0.0_RKIND
       kappa_VAR = 0.0_RKIND
       kappa_w3 = 0.0_RKIND
+      La_t = 0.0_RKIND
+      stokes_depth = 0.0_RKIND
+      stokes_angle = 0.0_RKIND
 
       !$acc exit data delete(KspsD,    &
       !$acc                   nCells,   &
