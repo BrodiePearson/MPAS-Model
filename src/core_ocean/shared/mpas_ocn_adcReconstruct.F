@@ -1014,10 +1014,8 @@ module ocn_adc_mixing_fused
                       eps(i1,k+1,iCell)) / (ze(k,iCell) - ze(k+1,iCell) + 1.0E-10_RKIND)
                     
                     epstend(i3_f,k,iCell) = (tomUP - tomDN) / (zm(k-1,iCell) - zm(k,iCell) + 1.0E-10_RKIND) &
-                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*uw(i1,k,iCell)*(uvel(k-1,iCell) - uvel(k,iCell)) / &
-                      (zm(k-1,iCell) - zm(k,iCell)) &
-                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*vw(i1,k,iCell)*(vvel(k-1,iCell) - vvel(k,iCell)) / &
-                      (zm(k-1,iCell) - zm(k,iCell)) &
+                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*(uw(i1,k,iCell)*Uz + vw(i1,k,iCell)*Vz) &
+                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*(uw(i1,k,iCell)*Ustz + vw(i1,k,iCell)*Vstz) &
                       + 2.88_RKIND/(tau + 1.0E-10_RKIND)*grav*(alphaT(k,iCell)*wt(i1,k,iCell) - betaS(k,iCell)* &
                       ws(i1,k,iCell)) - 3.84_RKIND*eps(i1,k,iCell)/(tau + 1.0E-10_RKIND)
                  endif
@@ -1055,7 +1053,7 @@ module ocn_adc_mixing_fused
                    (ze(k,iCell) - ze(k+1,iCell))) / dzmid -                                 &
                    Cval*KspsU(i1,k,iCell)**1.5_RKIND/(1.0E-15_RKIND + lenspsU(k,iCell)) +                     &
                    eps(i1,k,iCell) / (2.0_RKIND*(1.0_RKIND - areaFraction(k,iCell))) + KmU(k,iCell)* &
-                   (Uz**2.0_RKIND + Vz**2.0_RKIND)
+                   (Uz**2.0_RKIND + Vz**2.0_RKIND + Uz*Ustz + Vz*Vstz)
 
                  if (config_adc_truncate_tend) then
                     KspsUtend(i3_f,k,iCell) = FLOAT (INT(KspsUtend(i3_f,k,iCell) * adcRound &
@@ -1076,7 +1074,7 @@ module ocn_adc_mixing_fused
                    (ze(k,iCell) - ze(k+1,iCell))) / dz -                                 &
                    Cval*KspsD(i1,k,iCell)**1.5_RKIND /(1.0E-15_RKIND + lenspsD(k,iCell)) +                   &
                    eps(i1,k,iCell) / (2.0_RKIND*(areaFraction(k,iCell))) + &
-                   KmD(k,iCell)*(Uz**2.0_RKIND + Vz**2.0_RKIND)
+                   KmD(k,iCell)*(Uz**2.0_RKIND + Vz**2.0_RKIND + Uz*Ustz + Vz*Vstz)
 
                  if (config_adc_truncate_tend) then
                     KspsDtend(i3_f,k,iCell) = FLOAT (INT(KspsDtend(i3_f,k,iCell) * adcRound &
