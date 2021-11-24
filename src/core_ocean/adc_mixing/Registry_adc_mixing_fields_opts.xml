@@ -32,7 +32,7 @@
           possible_values="positive real numbers"
           />
   <nml_option name="config_adc_stokes_angle" type="real" default_value="0.0" units="radians"
-          description="Angle between wind and waves (surface stress and surface Stokes drift vector respectively). Positive values denote waves to the left of the wind. NOTE: units are RADIANS."
+          description="Angle between wind and waves (surface stress and surface Stokes drift vector respectively). Positive values denote waves to the left of the wind."
           possible_values="positive or negative real numbers"
           />
   <nml_option name="config_adc_tau_o" type="real" default_value="1800" units="s^{-1}"
