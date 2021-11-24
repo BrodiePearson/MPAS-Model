@@ -182,7 +182,7 @@ module ocn_adc_mixing_fused
 
       real(kind=RKIND),dimension(nVertLevels,nCells) :: Swumd
       real(kind=RKIND),dimension(nVertLevels,nCells) :: tauw3, tau_tracer, tauVel, tauvVel
-      real(kind=RKIND),dimension(nVertLevels,nCells) :: uStokes, vStokes
+      real(kind=RKIND),dimension(nVertLevels,nCells) :: uStokes, vStokes, uStokesm, vStokesm
       real(kind=RKIND),dimension(nVertLevels,nCells) :: areaFractionMid, tumdMid, McMid, wumdMid, sumdMid
 
       real(kind=RKIND) :: SwU, SwD, tau_sfc, d_sqrt_wp2_dz, tp2, sp2, min_wp2_sfc_val, wp2_splat_sfc_correction
@@ -233,11 +233,15 @@ module ocn_adc_mixing_fused
 !             La_t = (friction velocity / surface stokes drift magnitude)^(0.5) and the
 !             stokes_angle (angle between surface stress and Stokes drift vectors)
 
-              uStokes(1,iCell) = uStokes_surf
-              vStokes(1,iCell) = vStokes_surf
+!              uStokes(1,iCell) = uStokes_surf
+!              vStokes(1,iCell) = vStokes_surf
               do k=1,nVertLevels
+!                Calculate Stokes drift at vertical edge of cells
                  uStokes(k,iCell) = uStokes_surf*EXP(ze(k,iCell)/stokes_depth)
                  vStokes(k,iCell) = vStokes_surf*EXP(ze(k,iCell)/stokes_depth)
+!                Calculate Stokes drift at vertical midpoint of cells
+                 uStokesm(k,iCell) = uStokes_surf*EXP(zm(k,iCell)/stokes_depth)
+                 vStokesm(k,iCell) = vStokes_surf*EXP(zm(k,iCell)/stokes_depth)
               enddo
 
               do k=1,3
@@ -470,6 +474,7 @@ module ocn_adc_mixing_fused
                 SwD = -(1.0_RKIND-2.0_RKIND*areaFraction(k+1,iCell)) &
                    /(areaFraction(k+1,iCell)*(1.0_RKIND-areaFraction(k+1,iCell)))**0.5_RKIND
 
+!    Calculate Stokes drift derivatives at vertical cell centers (where w3 is located)
                 Ustz = (uStokes(k,iCell) - uStokes(k+1,iCell)) / dz
                 Vstz = (vStokes(k,iCell) - vStokes(k+1,iCell)) / dz
 
@@ -546,8 +551,9 @@ module ocn_adc_mixing_fused
 
                  Uz = (uvel(k-1,iCell) - uvel(k,iCell)) / dzmid
                  Vz = (vvel(k-1,iCell) - vvel(k,iCell)) / dzmid
-                 Ustz = (uStokes(k-1,iCell) - uStokes(k,iCell)) / dzmid
-                 Vstz = (vStokes(k-1,iCell) - vStokes(k,iCell)) / dzmid
+!    Calculate Stokes drift derivatives at vertical cell edges (where w2 etc. are located)
+                 Ustz = (uStokesm(k-1,iCell) - uStokesm(k,iCell)) / dzmid
+                 Vstz = (vStokesm(k-1,iCell) - vStokesm(k,iCell)) / dzmid
                  Tz = (activeTracers(1,k-1,iCell) - activeTracers(1,k,iCell)) / dzmid
                  Sz = (activeTracers(2,k-1,iCell) - activeTracers(2,k,iCell)) / dzmid
                  
