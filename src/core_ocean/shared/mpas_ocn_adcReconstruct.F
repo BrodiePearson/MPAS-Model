@@ -233,8 +233,6 @@ module ocn_adc_mixing_fused
 !             La_t = (friction velocity / surface stokes drift magnitude)^(0.5) and the
 !             stokes_angle (angle between surface stress and Stokes drift vectors)
 
-!              uStokes(1,iCell) = uStokes_surf
-!              vStokes(1,iCell) = vStokes_surf
               do k=1,nVertLevels
 !                Calculate Stokes drift at vertical edge of cells
                  uStokes(k,iCell) = uStokes_surf*EXP(ze(k,iCell)/stokes_depth)
