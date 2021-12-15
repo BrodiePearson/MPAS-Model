@@ -168,7 +168,8 @@ module ocn_adc_mixing_fused
 
       real(kind=RKIND) :: Sw, St, Ss, Eav, Dav, sigav, sigavp1, wumdAv, tumdAv, sumdAv, wumdAvp1, tumdAvp1, sumdAvp1
       real(kind=RKIND) :: Swup, KspsUav, KspsDav, KspsUavp1, KspsDavp1, KE, Mcav, lenav,u2av,v2av,w2av
-      real(kind=RKIND) :: w2tTemp, w2tCheck, w2sTemp, w2sCheck, w3temp, w3check2, w3check, mval, KEsps, Uz, Vz, dz
+      real(kind=RKIND) :: w2tTemp, w2tCheck, w2sTemp, w2sCheck, w3temp, w3check2, w3check, mval, KEsps
+      real(kind=RKIND) :: Uz, Vz, Ustz, Vstz, dz
 
       real(kind=RKIND) :: invLen, l, len1, len2, lenmax, integrandTop, integrandBot
       real(kind=RKIND) :: len0, len2_1, len2_2, sfcBuoy, lengthT, bvfT
@@ -177,9 +178,11 @@ module ocn_adc_mixing_fused
       real(kind=RKIND) :: B, Cval, diff, wtav, dzmid, Ksps, Sz, Tz, w4k, w4kp1, w2k, w2kp1
       real(kind=RKIND) :: lareaFraction, wstar, Q, w3av, tempMoment, frictionVelocity
       real(kind=RKIND) :: sfcFrictionVelocitySquared, wtSumUp, wtSumDn, wsSumUp, wsSumDn
+      real(kind=RKIND) :: uStokes_surf, vStokes_surf
 
       real(kind=RKIND),dimension(nVertLevels,nCells) :: Swumd
       real(kind=RKIND),dimension(nVertLevels,nCells) :: tauw3, tau_tracer, tauVel, tauvVel
+      real(kind=RKIND),dimension(nVertLevels,nCells) :: uStokes, vStokes, uStokesm, vStokesm
       real(kind=RKIND),dimension(nVertLevels,nCells) :: areaFractionMid, tumdMid, McMid, wumdMid, sumdMid
 
       real(kind=RKIND) :: SwU, SwD, tau_sfc, d_sqrt_wp2_dz, tp2, sp2, min_wp2_sfc_val, wp2_splat_sfc_correction
@@ -215,6 +218,30 @@ module ocn_adc_mixing_fused
               sfcFrictionVelocitySquared = uwsfc(iCell) + vwsfc(iCell)
               frictionVelocity = sqrt(sfcFrictionVelocitySquared + config_adc_bc_wstar * wstar * wstar)
               frictionVelocity = max( config_adc_frictionVelocityMin, frictionVelocity )
+
+              ! Initialize Stokes drift surface values as zero, overwrite these if config_adc_langmuir = .True.
+              uStokes_surf = 0.0_RKIND
+              vStokes_surf = 0.0_RKIND
+              if (config_adc_langmuir) then
+                  uStokes_surf = COS(stokes_angle)*frictionVelocity / (La_t**2.0_RKIND)
+                  vStokes_surf = SIN(stokes_angle)*frictionVelocity / (La_t**2.0_RKIND)
+              endif
+
+!             Calculate exponential Stokes drift profiles from surface values & decay depth
+!             [stokes_decay_depth]. This is temporary; eventually MPAS will pass profiles
+!             For now this is calculated using the turbulent Langmuir number La_t
+!             La_t = (friction velocity / surface stokes drift magnitude)^(0.5) and the
+!             stokes_angle (angle between surface stress and Stokes drift vectors)
+
+              do k=1,nVertLevels
+!                Calculate Stokes drift at vertical edge of cells
+                 uStokes(k,iCell) = uStokes_surf*EXP(ze(k,iCell)/stokes_depth)
+                 vStokes(k,iCell) = vStokes_surf*EXP(ze(k,iCell)/stokes_depth)
+!                Calculate Stokes drift at vertical midpoint of cells
+                 uStokesm(k,iCell) = uStokes_surf*EXP(zm(k,iCell)/stokes_depth)
+                 vStokesm(k,iCell) = vStokes_surf*EXP(zm(k,iCell)/stokes_depth)
+              enddo
+
               do k=1,3
                  u2(k,1,iCell) = config_adc_up2_vp2_factor*config_adc_bc_const*frictionVelocity**2.0_RKIND
                  v2(k,1,iCell) = config_adc_up2_vp2_factor*config_adc_bc_const*frictionVelocity**2.0_RKIND
@@ -445,6 +472,10 @@ module ocn_adc_mixing_fused
                 SwD = -(1.0_RKIND-2.0_RKIND*areaFraction(k+1,iCell)) &
                    /(areaFraction(k+1,iCell)*(1.0_RKIND-areaFraction(k+1,iCell)))**0.5_RKIND
 
+!    Calculate Stokes drift derivatives at vertical cell centers (where w3 is located)
+                Ustz = (uStokes(k,iCell) - uStokes(k+1,iCell)) / dz
+                Vstz = (vStokes(k,iCell) - vStokes(k+1,iCell)) / dz
+
 !      CALCULATE W3 TENDENCY TERMS
 !      Calculate the tendency (rate-of-change) terms for the w3 budget.
 !      The w3 tendency is the sum of the following terms (saved individually)
@@ -454,6 +485,7 @@ module ocn_adc_mixing_fused
 !                   (4) parameterized pressure terms (Rotta, buoyancy)
 !                   (5) buoyancy production and sub-plume scale effects
 !                   (6) splatting (calculated earlier)
+!                   (7) Stokes drift production terms -3*[uw2*d(ustokes)/dz + vw2*d(ustokes)/dz]
 !      The tendency term is truncated if config_adc_truncate_tend flag it switched on
                  w3tend1(k,iCell) = -wumdav**3.0_RKIND*(Eav*(3.0_RKIND*sigav - 2.0_RKIND) &
                    + Dav*(3.0_RKIND*sigav - 1.0_RKIND))
@@ -469,8 +501,10 @@ module ocn_adc_mixing_fused
                  w3tend5(k,iCell) = 3.0_RKIND*grav*(alphaT(k,iCell)*w2t(k,iCell) - betaS(k,iCell)* &
                    w2s(k,iCell)) - 3.0_RKIND*(1.0_RKIND - 2.0_RKIND*sigav)*Mcav*wumdav*Swumd(k,iCell)
 
+                 w3tend7(k,iCell) = - 3.0_RKIND*(uw2(k,iCell)*Ustz + vw2(k,iCell)*Vstz)
+
                  w3tend(i3_f,k,iCell) = w3tend1(k,iCell) + w3tend2(k,iCell) + w3tend3(k,iCell) + &
-                   w3tend4(k,iCell) + w3tend5(k,iCell) + w3tend6(k,iCell)
+                   w3tend4(k,iCell) + w3tend5(k,iCell) + w3tend6(k,iCell) + w3tend7(k,iCell)
 
                  if(k>1 .and. k < nVertLevels .and. kappa_w3 > 0.0_RKIND) then
                     w3tend(i3_f,k,iCell) = w3tend(i3_f,k,iCell) + kappa_w3*(w3(i1,k-1,iCell) &
@@ -515,6 +549,9 @@ module ocn_adc_mixing_fused
 
                  Uz = (uvel(k-1,iCell) - uvel(k,iCell)) / dzmid
                  Vz = (vvel(k-1,iCell) - vvel(k,iCell)) / dzmid
+!    Calculate Stokes drift derivatives at vertical cell edges (where w2 etc. are located)
+                 Ustz = (uStokesm(k-1,iCell) - uStokesm(k,iCell)) / dzmid
+                 Vstz = (vStokesm(k-1,iCell) - vStokesm(k,iCell)) / dzmid
                  Tz = (activeTracers(1,k-1,iCell) - activeTracers(1,k,iCell)) / dzmid
                  Sz = (activeTracers(2,k-1,iCell) - activeTracers(2,k,iCell)) / dzmid
                  
@@ -538,6 +575,7 @@ module ocn_adc_mixing_fused
 !                   (4) production of w2 by buoyancy fluxes (conversion to/from potential energy)
 !                   (5) sub-plume scale effects (based on Lappen & Randall 2001)
 !                   (6) splatting (calculated earlier; converts w2 to u2/v2 near surface)
+!                   (7) Stokes drift production terms -2*[uw*d(ustokes)/dz + vw*d(vstokes)/dz]
 !      The tendency term is truncated if config_adc_truncate_tend flag it switched on
 !      The parameterization consists of a slow (Rotta) term [Rotta, 1951],
 !      a rapid term that depends on gradients in mean velocity [Speziale et al., 1991],
@@ -556,19 +594,23 @@ module ocn_adc_mixing_fused
                  -2.0_RKIND*w2(i1,k,iCell))/3.0_RKIND + (1.0_RKIND/3.0_RKIND*alpha_1 - &
                    alpha_2)*(uw(i1,k,iCell)*Uz + vw(i1,k,iCell)*Vz) - 4.0_RKIND/3.0_RKIND* &
                    C_b*Mc(k,iCell)*(grav*alphaT(k,iCell)*tumd(k,iCell) - &
-                   grav*betaS(k,iCell)*sumd(k,iCell))
+                   grav*betaS(k,iCell)*sumd(k,iCell)) + &
+                   (alpha_st_1 / 3.0_RKIND - alpha_st_2)*(uw(i1,k,iCell)*Ustz + vw(i1,k,iCell)*Vstz)
 
                  w2tend4(k,iCell) = 2.0_RKIND*Mc(k,iCell)* &
                    (grav*alphaT(k,iCell)*tumd(k,iCell) - grav*betaS(k,iCell)*sumd(k,iCell))
 
                  w2tend5(k,iCell) = Mc(k,iCell)*(Swumd(k-1,iCell) + Swumd(k,iCell))
+
+                 w2tend7(k,iCell) = -2.0_RKIND*(uw(i1,k,iCell)*Ustz + vw(i1,k,iCell)*Vstz)
 !      Sum the above tendency terms to find the total w2 tendency.
 !      Note this includes a splatting term calculated earlier (w2tend6).
 !      Also, the w2 slow pressure term (within w2tend3) is removed here as it is
 !      included implicitly in the timestepping
                  w2tend(i3_f,k,iCell) = w2tend1(k,iCell) + w2tend2(k,iCell) + &
                    w2tend3(k,iCell) + w2tend4(k,iCell) + w2tend5(k,iCell) + &
-                   w2tend6(k,iCell) + 2.0_RKIND*tauvVel(k,iCell)*w2(i1,k,iCell)/3.0_RKIND
+                   w2tend6(k,iCell) + w2tend7(k,iCell) +  &
+                   2.0_RKIND*tauvVel(k,iCell)*w2(i1,k,iCell)/3.0_RKIND
 
                  if (config_adc_truncate_tend) then
                     w2tend(i3_f,k,iCell) = FLOAT (INT(w2tend(i3_f,k,iCell) * adcRound &
@@ -584,6 +626,7 @@ module ocn_adc_mixing_fused
 !                   (4) gradient and buoyancy production terms of wt [ -w2*dT/dz + t*buoyancy]
 !                   (5) dissipation of wt [ -kappa_FL*[d(wt)/dz]^2 ]
 !                   (6) sub-plume scale effects (based on Lappen & Randall 2001)
+!                   (7) Stokes drift production terms -[ut*d(ustokes)/dz + vt*d(vstokes)/dz]
 !      The tendency term is truncated if config_adc_truncate_tend flag it switched on
                  wttend1(k,iCell) = -1.0_RKIND*(Entrainment(k,iCell) + Detrainment(k,iCell)) * &
                    wumd(k,iCell)*tumd(k,iCell)
@@ -595,7 +638,9 @@ module ocn_adc_mixing_fused
                    (1.0_RKIND - areaFraction(k,iCell))*grav*(alphaT(k,iCell) &
                    *tumd(k,iCell)**2.0_RKIND - betaS(k,iCell)*tumd(k,iCell)*sumd(k,iCell)) + &
                    0.5_RKIND*(alpha_tracer1 - alpha_tracer2)*(ut(i1,k,iCell)*Uz + &
-                   vt(i1,k,iCell)*Vz)
+                   vt(i1,k,iCell)*Vz) &
+                   + 0.5_RKIND*(alpha_st_tracer1 - alpha_st_tracer2)* &
+                   (ut(i1,k,iCell)*Ustz + vt(i1,k,iCell)*Vstz)
 
                  wttend4(k,iCell) = - Mc(k,iCell)*wumd(k,iCell)*Tz + &
                    areaFraction(k,iCell)*(1.0_RKIND - areaFraction(k,iCell))*grav*(alphaT(k,iCell) &
@@ -611,12 +656,14 @@ module ocn_adc_mixing_fused
                    -1.0_RKIND/(1.0_RKIND - areaFraction(k,iCell))*((1.0_RKIND - areaFraction(k-1,iCell))* &
                    wt_spsD(k-1,iCell) - (1.0_RKIND - areaFraction(k+1,iCell))*wt_spsD(k+1,iCell)) / &
                    (ze(k-1,iCell) - ze(k+1,iCell)))
+
+                 wttend7(k,iCell) = -ut(i1,k,iCell)*Ustz - vt(i1,k,iCell)*Vstz
 !      Sum the above tendency terms to find the total wt tendency.
 !      Also, the wt slow pressure term (within wttend3) is removed here as it is
 !      included implicitly in the timestepping
                  wttend(i3_f,k,iCell) = wttend1(k,iCell) + wttend2(k,iCell) +        &
                    wttend3(k,iCell) + wttend4(k,iCell) + wttend5(k,iCell) + wttend6(k,iCell) + &
-                   tau_tracer(k,iCell)*wt(i1,k,iCell)
+                   wttend7(k,iCell) + tau_tracer(k,iCell)*wt(i1,k,iCell)
 
                  if (config_adc_truncate_tend) then
                     wttend(i3_f,k,iCell) = FLOAT (INT(wttend(i3_f,k,iCell) * adcRound &
@@ -632,6 +679,7 @@ module ocn_adc_mixing_fused
 !                   (4) gradient and buoyancy production terms of ws [ -w2*dS/dz + s*buoyancy]
 !                   (5) dissipation of ws [ -kappa_FL*[d(ws)/dz]^2 ]
 !                   (6) sub-plume scale effects (based on Lappen & Randall 2001)
+!                   (7) Stokes drift production terms -[us*d(ustokes)/dz + vs*d(vstokes)/dz]
 !      The tendency term is truncated if config_adc_truncate_tend flag it switched on
                  wstend1(k,iCell) = -(Entrainment(k,iCell) + Detrainment(k,iCell)) * &
                    wumd(k,iCell)*sumd(k,iCell)
@@ -645,7 +693,9 @@ module ocn_adc_mixing_fused
                    C_b_tracer*grav*areaFraction(k,iCell)* &
                    (1.0_RKIND - areaFraction(k,iCell))*(alphaT(k,iCell) &
                    *tumd(k,iCell)*sumd(k,iCell) - betaS(k,iCell)*sumd(k,iCell)*sumd(k,iCell)) + &
-                   0.5_RKIND*(alpha_tracer1 - alpha_tracer2)*(us(i1,k,iCell)*Uz + vs(i1,k,iCell)*Vz)
+                   0.5_RKIND*(alpha_tracer1 - alpha_tracer2)*(us(i1,k,iCell)*Uz + vs(i1,k,iCell)*Vz) &
+                   + 0.5_RKIND*(alpha_st_tracer1 - alpha_st_tracer2)* &
+                   (us(i1,k,iCell)*Ustz + vs(i1,k,iCell)*Vstz)
 
                  wstend4(k,iCell) = - Mc(k,iCell)*wumd(k,iCell)*Sz + &
                     grav*areaFraction(k,iCell)* &
@@ -662,12 +712,14 @@ module ocn_adc_mixing_fused
                    -1.0_RKIND/(1.0_RKIND - areaFraction(k,iCell))*((1.0_RKIND - areaFraction(k-1,iCell))* &
                    ws_spsD(k-1,iCell) - (1.0_RKIND - areaFraction(k+1,iCell))*ws_spsD(k+1,iCell)) / &
                    (ze(k-1,iCell) - ze(k+1,iCell)))
+
+                 wstend7(k,iCell) = -us(i1,k,iCell)*Ustz - vs(i1,k,iCell)*Vstz
 !      Sum the above tendency terms to find the total ws tendency.
 !      Also, the ws slow pressure term (within wstend3) is removed here as it is
 !      included implicitly in the timestepping
                  wstend(i3_f,k,iCell) = wstend1(k,iCell) + wstend2(k,iCell) + &
                    wstend3(k,iCell) + wstend4(k,iCell) + wstend5(k,iCell) + wstend6(k,iCell) + &
-                   tau_tracer(k,iCell)*ws(i1,k,iCell)
+                   wstend7(k,iCell) + tau_tracer(k,iCell)*ws(i1,k,iCell)
 
                  if (config_adc_truncate_tend) then
                     wstend(i3_f,k,iCell) = FLOAT (INT(wstend(i3_f,k,iCell) * adcRound &
@@ -682,6 +734,7 @@ module ocn_adc_mixing_fused
 !                   (3) shear production of uw [-w2*dU/dz]
 !                   (4) buoyancy production of uw [ u*buoyancy]
 !                   (5) dissipation of uw [ -kappa_FL*[d(uw)/dz]^2 ]
+!                   (6) Stokes production term -[u2*d(ustokes)/dz + uv*d(vstokes)/dz]
 !      The tendency term is truncated if config_adc_truncate_tend flag it switched on
                  uwtend1(k,iCell) = -(uw2(k-1,iCell) - uw2(k,iCell)) / dzmid
 
@@ -690,7 +743,11 @@ module ocn_adc_mixing_fused
                    (alpha_1 - alpha_2)*u2(i1,k,iCell) + (alpha_1 +  &
                    alpha_2)*w2(i1,k,iCell))*Uz + 0.5_RKIND*(alpha_1 - alpha_2)*    &
                    uv(i1,k,iCell)*Vz - C_b*grav*(alphaT(k,iCell)*   &
-                   ut(i1,k,iCell) - betaS(k,iCell)*us(i1,k,iCell))
+                   ut(i1,k,iCell) - betaS(k,iCell)*us(i1,k,iCell)) + &
+                   0.5_RKIND*((alpha_st_0 - 4.0_RKIND*alpha_st_1/3.0_RKIND)*KE**2.0_RKIND +  &
+                   (alpha_st_1 - alpha_st_2)*u2(i1,k,iCell) + (alpha_st_1 +  &
+                   alpha_st_2)*w2(i1,k,iCell))*Ustz + 0.5_RKIND*(alpha_st_1 - alpha_st_2)*    &
+                   uv(i1,k,iCell)*Vstz
 
                  uwtend3(k,iCell) = - w2(i1,k,iCell)*Uz
 
@@ -699,9 +756,11 @@ module ocn_adc_mixing_fused
 
                  uwtend5(k,iCell) = kappa_FL*(uw(i1,k-1,iCell) - uw(i1,k+1,iCell)) / &
                    (ze(k-1,iCell) - ze(k+1,iCell))**2.0_RKIND
+
+                 uwtend6(k,iCell) = -u2(i1,k,iCell)*Ustz - uv(i1,k,iCell)*Vstz
 !      Sum the above tendency terms to find the total uw tendency.
                  uwtend(i3_f,k,iCell) = uwtend1(k,iCell) + uwtend2(k,iCell) + &
-                   uwtend3(k,iCell) + uwtend4(k,iCell) + uwtend5(k,iCell)
+                   uwtend3(k,iCell) + uwtend4(k,iCell) + uwtend5(k,iCell) + uwtend6(k,iCell)
 
                  if (config_adc_truncate_tend) then
                     uwtend(i3_f,k,iCell) = FLOAT (INT(uwtend(i3_f,k,iCell) * adcRound &
@@ -716,6 +775,7 @@ module ocn_adc_mixing_fused
 !                   (3) shear production of vw [-w2*dV/dz]
 !                   (4) buoyancy production of vw [ v*buoyancy]
 !                   (5) dissipation of vw [ -kappa_FL*[d(vw)/dz]^2 ]
+!                   (6) Stokes production term -[uv*d(ustokes)/dz + v2*d(vstokes)/dz]
 !      The tendency term is truncated if config_adc_truncate_tend flag it switched on
                  vwtend1(k,iCell) = -(vw2(k-1,iCell) - vw2(k,iCell)) / dzmid
 
@@ -724,7 +784,11 @@ module ocn_adc_mixing_fused
                    (alpha_1 - alpha_2)*v2(i1,k,iCell) + (alpha_1 +  &
                    alpha_2)*w2(i1,k,iCell))*Vz + 0.5_RKIND*(alpha_1 - alpha_2)*    &
                    uv(i1,k,iCell)*Uz - C_b*grav*(alphaT(k,iCell)*   &
-                   vt(i1,k,iCell) - betaS(k,iCell)*vs(i1,k,iCell))
+                   vt(i1,k,iCell) - betaS(k,iCell)*vs(i1,k,iCell))+ &
+                   0.5_RKIND*((alpha_st_0 - 4.0_RKIND*alpha_st_1/3.0_RKIND)*KE**2.0_RKIND +  &
+                   (alpha_st_1 - alpha_st_2)*v2(i1,k,iCell) + (alpha_st_1 +  &
+                   alpha_st_2)*w2(i1,k,iCell))*Vstz + 0.5_RKIND*(alpha_st_1 - alpha_st_2)*    &
+                   uv(i1,k,iCell)*Ustz
 
                  vwtend3(k,iCell) = - w2(i1,k,iCell)*Vz
 
@@ -733,6 +797,8 @@ module ocn_adc_mixing_fused
 
                  vwtend5(k,iCell) = kappa_FL*(vw(i1,k-1,iCell) - vw(i1,k+1,iCell)) / &
                    (ze(k-1,iCell) - ze(k+1,iCell))**2.0_RKIND
+
+                 vwtend6(k,iCell) = -uv(i1,k,iCell)*Ustz - v2(i1,k,iCell)*Vstz
 !      Sum the above tendency terms to find the total vw tendency.
                  vwtend(i3_f,k,iCell) = vwtend1(k,iCell) + vwtend2(k,iCell) + &
                    vwtend3(k,iCell) + vwtend4(k,iCell) + vwtend5(k,iCell)
@@ -754,6 +820,8 @@ module ocn_adc_mixing_fused
                    - tauVel(k,iCell)*uv(i1,k,iCell)  & ! Rotta
                    + 0.5_RKIND*(alpha_1+alpha_2)* &
                    (uw(i1,k,iCell)*Vz + vw(i1,k,iCell)*Uz) & ! rapid
+                   + 0.5_RKIND*(alpha_st_1 + alpha_st_2)* &
+                   (uw(i1,k,iCell)*Vstz + vw(i1,k,iCell)*Ustz) & ! Stokes
                    - (uw(i1,k,iCell)*Vz + vw(i1,k,iCell)*Uz) & ! shear production
                    + kappa_VAR*(uv(i1,k-1,iCell) - uv(i1,k+1,iCell)) / &
                    (ze(k-1,iCell) - ze(k+1,iCell))**2.0_RKIND ! dissipation
@@ -781,7 +849,9 @@ module ocn_adc_mixing_fused
                    areaFraction(k,iCell))*wumd(k,iCell)**2)/3.0_RKIND + &
                    (1.0_RKIND/3.0_RKIND*alpha_1 + alpha_2) &
                    *uw(i1,k,iCell)*Uz - 2.0_RKIND/3.0_RKIND*alpha_1*vw(i1,k,iCell)*Vz &
-                   + 2.0_RKIND/3.0_RKIND*C_b*B
+                   + 2.0_RKIND/3.0_RKIND*C_b*B + (alpha_st_1/3.0_RKIND + alpha_st_2) &
+                   *uw(i1,k,iCell)*Ustz &
+                   - 2.0_RKIND*alpha_st_1/3.0_RKIND*vw(i1,k,iCell)*Vstz
 
                  u2tend3(k,iCell) = -2.0_RKIND*uw(i1,k,iCell)*Uz
 
@@ -817,7 +887,9 @@ module ocn_adc_mixing_fused
                    areaFraction(k,iCell))*wumd(k,iCell)**2)/3.0_RKIND + &
                    (1.0_RKIND/3.0_RKIND*alpha_1 + alpha_2) &
                    *vw(i1,k,iCell)*Vz - 2.0_RKIND/3.0_RKIND*alpha_1*uw(i1,k,iCell)*Uz &
-                   + 2.0_RKIND/3.0_RKIND*C_b*B
+                   + 2.0_RKIND/3.0_RKIND*C_b*B + (alpha_st_1/3.0_RKIND + alpha_st_2) &
+                   *vw(i1,k,iCell)*Vstz &
+                   - 2.0_RKIND*alpha_st_1/3.0_RKIND*uw(i1,k,iCell)*Ustz
 
                  v2tend3(k,iCell) = -2.0_RKIND*vw(i1,k,iCell)*Vz
 
@@ -847,7 +919,9 @@ module ocn_adc_mixing_fused
                  uttend(i3_f,k,iCell) = -(uwt(k-1,iCell) - uwt(k,iCell))/dz  & ! Transport
                    - ut(i1,k,iCell)*tau_tracer(k,iCell) & ! Rotta
                    + 0.5_RKIND*(alpha_tracer1 + alpha_tracer2)*wt(i1,k,iCell)*Uz & ! Rapid
-                   - wt(i1,k,iCell)*Uz & ! Rapid
+                   + 0.5_RKIND*(alpha_st_tracer1 + alpha_st_tracer2) &
+                    *wt(i1,k,iCell)*Ustz & ! Stokes
+                   - wt(i1,k,iCell)*Uz & ! Shear production
                    - uw(i1,k,iCell)*Tz ! Gradient production
 
                  if (config_adc_truncate_tend) then
@@ -866,7 +940,9 @@ module ocn_adc_mixing_fused
                  vttend(i3_f,k,iCell) = -(vwt(k-1,iCell) - vwt(k,iCell))/dz  & ! Transport
                    - vt(i1,k,iCell)*tau_tracer(k,iCell) & ! Rotta
                    + 0.5_RKIND*(alpha_tracer1 + alpha_tracer2)*wt(i1,k,iCell)*Vz & ! Rapid
-                   - wt(i1,k,iCell)*Vz & ! Rapid
+                   + 0.5_RKIND*(alpha_st_tracer1 + alpha_st_tracer2) &
+                    *wt(i1,k,iCell)*Vstz & ! Stokes
+                   - wt(i1,k,iCell)*Vz & ! Shear production
                    - vw(i1,k,iCell)*Tz ! Gradient production
 
                  if (config_adc_truncate_tend) then
@@ -884,6 +960,8 @@ module ocn_adc_mixing_fused
                  ustend(i3_f,k,iCell) = -(uws(k-1,iCell) - uws(k,iCell))/dz  & ! Transport
                    - us(i1,k,iCell)*tau_tracer(k,iCell) & ! Rotta
                    + 0.5_RKIND*(alpha_tracer1 + alpha_tracer2)*ws(i1,k,iCell)*Uz & ! Rapid
+                   + 0.5_RKIND*(alpha_st_tracer1 + alpha_st_tracer2) &
+                    *ws(i1,k,iCell)*Ustz & ! Stokes
                    - ws(i1,k,iCell)*Uz & ! Shear production
                    - uw(i1,k,iCell)*Sz ! Gradient production
 
@@ -903,7 +981,9 @@ module ocn_adc_mixing_fused
                  vstend(i3_f,k,iCell) = -(vws(k-1,iCell) - vws(k,iCell))/dz  & ! Transport
                    - vs(i1,k,iCell)*tau_tracer(k,iCell) & ! Rotta
                    + 0.5_RKIND*(alpha_tracer1 + alpha_tracer2)*ws(i1,k,iCell)*Vz & ! Rapid
-                   - ws(i1,k,iCell)*Vz & ! Rapid
+                   + 0.5_RKIND*(alpha_st_tracer1 + alpha_st_tracer2) &
+                    *ws(i1,k,iCell)*Vstz & ! Stokes
+                   - ws(i1,k,iCell)*Vz & ! Shear production
                    - vw(i1,k,iCell)*Sz ! Gradient production
 
                  if (config_adc_truncate_tend) then
@@ -938,10 +1018,8 @@ module ocn_adc_mixing_fused
                       eps(i1,k+1,iCell)) / (ze(k,iCell) - ze(k+1,iCell) + 1.0E-10_RKIND)
                     
                     epstend(i3_f,k,iCell) = (tomUP - tomDN) / (zm(k-1,iCell) - zm(k,iCell) + 1.0E-10_RKIND) &
-                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*uw(i1,k,iCell)*(uvel(k-1,iCell) - uvel(k,iCell)) / &
-                      (zm(k-1,iCell) - zm(k,iCell)) &
-                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*vw(i1,k,iCell)*(vvel(k-1,iCell) - vvel(k,iCell)) / &
-                      (zm(k-1,iCell) - zm(k,iCell)) &
+                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*(uw(i1,k,iCell)*Uz + vw(i1,k,iCell)*Vz) &
+                      - 2.88_RKIND/(tau + 1.0E-10_RKIND)*(uw(i1,k,iCell)*Ustz + vw(i1,k,iCell)*Vstz) &
                       + 2.88_RKIND/(tau + 1.0E-10_RKIND)*grav*(alphaT(k,iCell)*wt(i1,k,iCell) - betaS(k,iCell)* &
                       ws(i1,k,iCell)) - 3.84_RKIND*eps(i1,k,iCell)/(tau + 1.0E-10_RKIND)
                  endif
@@ -979,7 +1057,7 @@ module ocn_adc_mixing_fused
                    (ze(k,iCell) - ze(k+1,iCell))) / dzmid -                                 &
                    Cval*KspsU(i1,k,iCell)**1.5_RKIND/(1.0E-15_RKIND + lenspsU(k,iCell)) +                     &
                    eps(i1,k,iCell) / (2.0_RKIND*(1.0_RKIND - areaFraction(k,iCell))) + KmU(k,iCell)* &
-                   (Uz**2.0_RKIND + Vz**2.0_RKIND)
+                   (Uz**2.0_RKIND + Vz**2.0_RKIND + Uz*Ustz + Vz*Vstz)
 
                  if (config_adc_truncate_tend) then
                     KspsUtend(i3_f,k,iCell) = FLOAT (INT(KspsUtend(i3_f,k,iCell) * adcRound &
@@ -1000,7 +1078,7 @@ module ocn_adc_mixing_fused
                    (ze(k,iCell) - ze(k+1,iCell))) / dz -                                 &
                    Cval*KspsD(i1,k,iCell)**1.5_RKIND /(1.0E-15_RKIND + lenspsD(k,iCell)) +                   &
                    eps(i1,k,iCell) / (2.0_RKIND*(areaFraction(k,iCell))) + &
-                   KmD(k,iCell)*(Uz**2.0_RKIND + Vz**2.0_RKIND)
+                   KmD(k,iCell)*(Uz**2.0_RKIND + Vz**2.0_RKIND + Uz*Ustz + Vz*Vstz)
 
                  if (config_adc_truncate_tend) then
                     KspsDtend(i3_f,k,iCell) = FLOAT (INT(KspsDtend(i3_f,k,iCell) * adcRound &

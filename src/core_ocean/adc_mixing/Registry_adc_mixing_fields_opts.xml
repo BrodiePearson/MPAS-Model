@@ -19,6 +19,22 @@
 	      description="number of decimal places to keep, inverse is position of decimal rounding"
 	      possible_values="large positive reals"
 	      />
+  <nml_option name="config_adc_langmuir" type="logical" default_value=".false." units="unitless"
+          description="Switch to turn on wave effects (Langmuir turbulence) in ADC scheme. If false the Stokes drift of waves is set to zero. "
+          possible_values=".true. or .false."
+          />
+  <nml_option name="config_adc_La_t" type="real" default_value="0.3" units="unitless"
+          description="Turbulent Langmuir number La_t = SQRT(friction velocity / surface Stokes drift magnitude). Default value is that of an 'equilibrium wind-sea'."
+          possible_values="positive real numbers, increasing values indicate weaker waves"
+          />
+  <nml_option name="config_adc_stokes_depth" type="real" default_value="4.8" units="m"
+          description="Exponential decay depth of Stokes drift profile. Default value is common in LES studies."
+          possible_values="positive real numbers"
+          />
+  <nml_option name="config_adc_stokes_angle" type="real" default_value="0.0" units="radians"
+          description="Angle between wind and waves (surface stress and surface Stokes drift vector respectively). Positive values denote waves to the left of the wind."
+          possible_values="positive or negative real numbers"
+          />
   <nml_option name="config_adc_tau_o" type="real" default_value="1800" units="s^{-1}"
 	      description="characterstic eddy turnover timescale"
 	      possible_values="positive real numbers"
@@ -63,13 +79,33 @@
 	      description="alpha_2 third (vorticity) rapid pressure coefficient"
 	      possible_values="values near 0.6"
 	      />
+  <nml_option name="config_adc_alpha_st_0" type="real" default_value="2.2" units="unitless"
+          description="alpha_st_0 first (TKE) Stokes pressure coefficient for second-moment budgets"
+          possible_values="values near 2.2 (Pearson 2019)"
+          />
+  <nml_option name="config_adc_alpha_st_1" type="real" default_value="1.4" units="unitless"
+          description="alpha_st_1 second (strain) Stokes pressure coefficient"
+          possible_values="values near 1.4 (Pearson 2019)"
+          />
+  <nml_option name="config_adc_alpha_st_2" type="real" default_value="-0.5" units="unitless"
+          description="alpha_st_2 third (vorticity) Stokes pressure coefficient"
+          possible_values="values near -0.5 (Pearson 2019)"
+          />
   <nml_option name="config_adc_alpha_tracer1" type="real" default_value="0.6" units="unitless"
 	      description="alpha_scalar1 first rapid pressure coefficient in tracer flux budgets (Mironov 2001)"
-	      possible_values="suggested values: 0.6 (Canuto 2001) or equal to alpha_scalar2, >0, <1 (Harcourt 2013)"
+	      possible_values="suggested values: 0.6 (Canuto 2001) or 0.7 (Harcourt 2013) or positive and equal to alpha_tracer2 (production cancellation)"
   />
   <nml_option name="config_adc_alpha_tracer2" type="real" default_value="1.0" units="unitless"
 	      description="alpha_scalar2 rapid pressure coefficient in tracer flux budgets (Mironov 2001)"
-	      possible_values="suggested values: 1.0 (Canuto 2001) or equal to alpha_scalar2, >0, <1 (Harcourt 2013)"
+	      possible_values="suggested values: 1.0 (Canuto 2001) or 0.7 (Harcourt 2013) or positive and equal to alpha_tracer1 (production cancellation)"
+  />
+  <nml_option name="config_adc_alpha_st_tracer1" type="real" default_value="0.6" units="unitless"
+          description="alpha_st_scalar1 first Stokes pressure coefficient in tracer flux budgets (analogous to Mironov 2001 shear terms)"
+          possible_values="suggested values: 0.6 (Canuto analogy modified for Stokes production of wscalar) or 0.7 (Harcourt 2013) or POSITIVE and equal to MINUS alpha_tracer2 (production cancellation)"
+  />
+  <nml_option name="config_adc_alpha_st_tracer2" type="real" default_value="-1.0" units="unitless"
+          description="alpha_st_scalar2 second Stokes pressure coefficient in tracer flux budgets (analogous to Mironov 2001 shear terms)"
+          possible_values="suggested values: -1.0 (Canuto analogy modified for Stokes production of wscalar) or 0.7 (Harcourt 2013) or NEGATIVE and equal to MINUS alpha_tracer1 (production cancellation)"
   />
   <nml_option name="config_adc_c11" type="real" default_value="0.1" units="unitless"
 	      description="c_11 is the buoyancy contribution in the pressure correlation in w3 eqn"
@@ -292,23 +328,29 @@
   <var name="w2tend6" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
        description="conversion of w2 to u2/v2 due to splat effects"
        />
-  <var name="w3tend1" type="real" dimensions="nVertLevels nCells Time" units="m^2/s^3"
+  <var name="w2tend7" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+       description="Stokes production of w2 [-2*[uw*d(ustokes)/dz + vw*d(vstokes)/dz]"
+       />
+  <var name="w3tend1" type="real" dimensions="nVertLevels nCells Time" units="m^3/s^4"
        description="entrainment/detrainment term -- similar to dissipation"
        />
-  <var name="w3tend2" type="real" dimensions="nVertLevels nCells Time" units="m^2/s^3"
+  <var name="w3tend2" type="real" dimensions="nVertLevels nCells Time" units="m^3/s^4"
        description="turbulent transport of w3 [ -d(w^4)/dz ]"
        />
-  <var name="w3tend3" type="real" dimensions="nVertLevels nCells Time" units="m^2/s^3"
+  <var name="w3tend3" type="real" dimensions="nVertLevels nCells Time" units="m^3/s^4"
        description="gradient production of w3 [ (3/2)*d( [w2]^2 )/dz ]"
        />
-  <var name="w3tend4" type="real" dimensions="nVertLevels nCells Time" units="m^2/s^3"
+  <var name="w3tend4" type="real" dimensions="nVertLevels nCells Time" units="m^3/s^4"
        description="parameterized pressure terms (Rotta, buoyancy)"
        />
-  <var name="w3tend5" type="real" dimensions="nVertLevels nCells Time" units="m^2/s^3"
+  <var name="w3tend5" type="real" dimensions="nVertLevels nCells Time" units="m^3/s^4"
        description="buoyancy production and sub-plume scale effects"
        />
-  <var name="w3tend6" type="real" dimensions="nVertLevels nCells Time" units="m^2/s^3"
+  <var name="w3tend6" type="real" dimensions="nVertLevels nCells Time" units="m^3/s^4"
        description="destruction due to splat effects"
+       />
+  <var name="w3tend7" type="real" dimensions="nVertLevels nCells Time" units="m^3/s^4"
+       description="Stokes production of w3 -3*[uw2*d(ustokes)/dz + vw2*d(ustokes)/dz]"
        />
   <var name="wttend1" type="real" dimensions="nVertLevelsP1 nCells Time" units="m C/s^2"
        description="entrainment/detrainment term -- similar to dissipation"
@@ -328,6 +370,9 @@
   <var name="wttend6" type="real" dimensions="nVertLevelsP1 nCells Time" units="m C/s^2"
        description="subplume scale production term"
        />
+  <var name="wttend7" type="real" dimensions="nVertLevelsP1 nCells Time" units="m C/s^2"
+       description="Stokes production of wt -[ut*d(ustokes)/dz + vt*d(vstokes)/dz]"
+       />
   <var name="wstend1" type="real" dimensions="nVertLevelsP1 nCells Time" units="m PSU/s^2"
        description="entrainment/detrainment term -- similar to dissipation"
        />
@@ -346,6 +391,9 @@
   <var name="wstend6" type="real" dimensions="nVertLevelsP1 nCells Time" units="m PSU/s^2"
        description="subplume scale production term"
        />
+  <var name="wstend7" type="real" dimensions="nVertLevelsP1 nCells Time" units="m PSU/s^2"
+       description="Stokes production of ws -[us*d(ustokes)/dz + vs*d(vstokes)/dz]"
+       />
   <var name="uwtend1" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
        description="turbulent transport of uw [ -d(uww)/dz ]"
        />
@@ -361,6 +409,9 @@
   <var name="uwtend5" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
        description="dissipation of uw [-kappa_FL*[d(uw)/dz]^2] "
        />
+  <var name="uwtend6" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+       description="Stokes production of uw -[u2*d(ustokes)/dz + uv*d(vstokes)/dz]"
+       />
   <var name="vwtend1" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
        description="turbulent transport of vw [ -d(vww)/dz ]"
        />
@@ -375,6 +426,9 @@
        />
   <var name="vwtend5" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
        description="dissipation of uw [-kappa_FL*[d(uw)/dz]^2]"
+       />
+  <var name="vwtend6" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
+       description="Stokes production of vw -[uv*d(ustokes)/dz + v2*d(vstokes)/dz]"
        />
   <var name="u2tend1" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2/s^3"
        description="turbulent transport of u2 [ -d(uuw)/dz ]"
@@ -586,6 +640,7 @@
     <var name="w2tend4"/>
     <var name="w2tend5"/>
     <var name="w2tend6"/>
+    <var name="w2tend7"/>
     <var name="u2tend1"/>
     <var name="u2tend2"/>
     <var name="u2tend3"/>
@@ -601,26 +656,31 @@
     <var name="uwtend3"/>
     <var name="uwtend4"/>
     <var name="uwtend5"/>
+    <var name="uwtend6"/>
     <var name="vwtend1"/>
     <var name="vwtend2"/>
     <var name="vwtend3"/>
     <var name="vwtend4"/>
     <var name="vwtend5"/>
+    <var name="vwtend6"/>
     <var name="w3tend1"/>
     <var name="w3tend2"/>
     <var name="w3tend3"/>
     <var name="w3tend4"/>
     <var name="w3tend5"/>
+    <var name="w3tend6"/>
     <var name="wttend1"/>
     <var name="wttend2"/>
     <var name="wttend3"/>
     <var name="wttend4"/>
     <var name="wttend5"/>
+    <var name="wttend6"/>
     <var name="wstend1"/>
     <var name="wstend2"/>
     <var name="wstend3"/>
     <var name="wstend4"/>
     <var name="wstend5"/>
+    <var name="wstend6"/>
     <var name="u2"/>
     <var name="v2"/>
     <var name="w2"/>
